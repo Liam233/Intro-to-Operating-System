@@ -77,5 +77,31 @@ int main(int argc, char **argv) {
       printf("[%d] Blocks:  %d\n", inodes + 1, cur_inode->i_block[0]);
     }
   }
+
+  printf("\n");
+  printf("Directory Blocks:\n");
+  struct ext2_inode *inodes;
+  struct ext2_dir_entry *dir_ent;
+  int dirs;
+  for (dirs = 1; dirs < sb->s_inodes_count; dirs++) {
+    inodes = (struct ext2_inode *) (disk + (EXT2_BLOCK_SIZE * gd->bg_inode_table) +
+    dirs * sizeof(struct ext2_inode));
+    if (inodes->i_mode & EXT2_S_IFDIR && inodes->i_size > 0 && inodes->i_size <= EXT2_BLOCK_SIZE) {
+      printf("   DIR BLOCK NUM: %d (for inode %d)\n", inodes->i_block[0], dirs + 1);
+      int ref = 0;
+      while (ref < EXT2_BLOCK_SIZE) {
+        dir_ent = (struct ext2_dir_entry *) (disk + EXT2_BLOCK_SIZE * inodes->i_block[0] + ref);
+        char t = 'u';
+        if (dir_ent->file_type & EXT2_FT_REG_FILE) {
+          t = 'f';
+        } else if (dir_ent->file_type & EXT2_FT_DIR) {
+          t = 'd';
+        }
+        printf("Inode: %d rec_len: %d name_len: %d type= %c name=%.*s\n", dir_ent->inode, dir_ent->rec_len,
+        dir_ent->name_len, t, dir_ent->name_len, dir_ent->name);
+        ref += dir_ent->rec_len;
+      }
+    }
+  }
   return 0;
 }
