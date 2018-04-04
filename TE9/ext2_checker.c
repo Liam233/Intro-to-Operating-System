@@ -1,4 +1,16 @@
-#include "ext2_functions.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <string.h>
+#include <errno.h>
+#include <assert.h>
+#include <time.h>
+#include "ext2.h"
+
 
 unsigned char *disk;
 

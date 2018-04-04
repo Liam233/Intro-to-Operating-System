@@ -23,15 +23,8 @@ ext2_restore : ext2_restore.o ext2_functions.o
 ext2_checker : ext2_checker.o ext2_functions.o
 	gcc ${FLAGS} -o ext2_checker ext2_checker.o ext2_functions.o
 
-%.o : %.c ext2_functions.h ext2.h
+%.o : %.c ext2.h
 	gcc $(CFLAGS) -c $<
 
-.PHONY: clean
 clean :
 	rm -f *.o $(TARGETS) *~
-
-
-
-
-
-

@@ -1,4 +1,16 @@
-#include "ext2_functions.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <string.h>
+#include <errno.h>
+#include <assert.h>
+#include <time.h>
+#include "ext2.h"
+
 
 int get_free_inode(unsigned char *imap) {
 	unsigned char *copy = imap;
@@ -274,4 +286,3 @@ int attach_child_to_parent(unsigned char *disk, struct ext2_inode *inode, int ch
 
 	return 0;
 }
-
