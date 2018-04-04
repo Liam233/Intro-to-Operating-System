@@ -12,11 +12,42 @@
  */
 
 /* MODIFIED by Bogdan Simion, Tian Ze Chen, and Karen Reid for CSC369
- * to remove unnecessary components for the assignment, clean up the code 
- * and fix some bugs */
+ * to remove unnecessary components for the assignment, clean up the code
+ * and fix some bugs . */
+
 
 #ifndef CSC369_EXT2_FS_H
 #define CSC369_EXT2_FS_H
+
+/* Helper functions decorations added for EXT2 operations
+ */
+
+int get_file_inode(unsigned char *disk, char *src_path, char *fname, void *itable);
+
+int get_dir_inode(unsigned char *disk, char *name, void *offset);
+
+int attach_child_to_parent(unsigned char *disk, struct ext2_inode *inode, int child_inode, unsigned char type,
+                           char *child_name, unsigned char *bmap);
+
+int get_free_inode(unsigned char *imap);
+
+int get_free_block(unsigned char *bmap);
+
+void flip_map(unsigned char *map, int index);
+
+int get_map(unsigned char *map, int index);
+
+int get_slash_index(char *name);
+
+char *get_parent_name(char *name);
+
+char *get_child_name(char *name);
+
+int is_root(char *name);
+
+int check_file_path(unsigned char *disk, char *av, void *itable);
+
+char *format_name(char *argvtwo);
 
 /* The ext2 block size used in the assignment. */
 #define EXT2_BLOCK_SIZE 1024
@@ -31,7 +62,7 @@ struct ext2_super_block {
 	unsigned int   s_r_blocks_count;    /* Reserved blocks count */
 	unsigned int   s_free_blocks_count; /* Free blocks count */
 	unsigned int   s_free_inodes_count; /* Free inodes count */
-	
+
 	/******************************************************************
 	 * The rest of the ext2 superblock structure is irrelevant to the
 	 * assignment, but is included below, for completeness.
@@ -80,7 +111,7 @@ struct ext2_super_block {
 	char           s_volume_name[16];   /* volume name */
 	char           s_last_mounted[64];  /* directory where last mounted */
 	unsigned int   s_algorithm_usage_bitmap; /* For compression */
-	/* 
+	/*
 	 * Performance hints.  Directory preallocation should only
 	 * happen if the EXT2_COMPAT_PREALLOC flag is on.
 	 */
