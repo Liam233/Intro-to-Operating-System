@@ -42,7 +42,7 @@ int get_dir_inode(unsigned char *disk, char *name, void *itable) {
 						dirent_name = (char *) malloc((dir_ent->name_len + 1) * sizeof(char));
 						strncpy(dirent_name, dir_ent->name, dir_ent->name_len);
 						dirent_name[dir_ent->name_len] = '\0';
-						if (!strcmp(dirent_name, current_dir)) {    //Same directory
+						if (!strcmp(dirent_name, current_dir)) {
 							cur_inode = dir_ent->inode;
 							result_inode = cur_inode;
 							located = 1;
@@ -50,7 +50,7 @@ int get_dir_inode(unsigned char *disk, char *name, void *itable) {
 						}
 					}
 					dir_ent = (struct ext2_dir_entry *) ((char *) dir_ent + dir_ent->rec_len);
-					result_inode = -1;
+					result_inode = dir_ent;
 				}
 				i++;
 			}
@@ -196,7 +196,7 @@ int check_file_path(unsigned char *disk, char *absolute_path, void *itable){
 	char *src_path = get_parent_name(absolute_path);
 	char *file_name = get_child_name(absolute_path);
 	int inode = get_file_inode(disk, src_path, file_name, itable);
-	if(get_file_inode(disk, src_path, file, itable) < 1){
+	if(get_file_inode(disk, src_path, file_name, itable) < 1){
 		perror("File does not exist.\n");
 		exit(ENOENT);
 	}
@@ -214,7 +214,7 @@ int get_slash_position(char *name){
 	if(name[slash_position] != '/' && slash_position == 0){
 		slash_position = -1;
 	}
-	return slash;
+	return slash_position;
 }
 
 
@@ -223,8 +223,8 @@ char *get_parent_name(char *name){
 	if(slash_position == 0){
 		return "/";
 	}
-	// Allocate on heap.
-	char *parent_name = (char *) malloc((slash + 1) * sizeof(char));
+	// Allocate on heap.slash_
+	char *parent_name = (char *) malloc((slash_position + 1) * sizeof(char));
 	strncpy(parent_name, name, slash_position);
 	parent_name[slash_position] = '\0';
 	return parent_name;
@@ -233,12 +233,12 @@ char *get_parent_name(char *name){
 
 char *get_child_name(char *name){
 	int slash_position = get_slash_position(name);
-	if(slash == -1){
+	if(slash_position == -1){
 		return name;
 	}
 	int child_name_length = strlen(name) - slash_position;
 	// Allocate on heap.
-	char *child_name = (char *) malloc((child_len + 1) * sizeof(char));
+	char *child_name = (char *) malloc((child_name_length + 1) * sizeof(char));
 	strncpy(child_name, name + slash_position + 1, child_name_length);
 	// No slashes for child folder name.
 	child_name[child_name_length] = '\0';
@@ -294,17 +294,17 @@ int get_directory_inode(unsigned char *virtual_disk, char *name, void *itable){
 			int i = 0;
 			while(!flag && i < (inodes->i_blocks / 2)){
 				count = 0;
-				directory_entry = (struct ext2_dir_entry *) (virtualdisk + EXT2_BLOCK_SIZE * inodes->i_block[i]);
+				directory_entry = (struct ext2_dir_entry *) (virtual_disk + EXT2_BLOCK_SIZE * inodes->i_block[i]);
 				while(count < EXT2_BLOCK_SIZE){
-					count = count + dir_ent->rec_len;
+					count = count + directory_entry->rec_len;
 					if(EXT2_FT_DIR & directory_entry->file_type){
 						dirent_name = (char *) malloc((directory_entry->name_len + 1) * sizeof(char));
 						strncpy(dirent_name, directory_entry->name, directory_entry->name_len);
 						dirent_name[directory_entry->name_len] = '\0';
 						// Same directory
-						if(!strcmp(dirent_name, current_dir)){
-							cur_inode = directory_entry->inode;
-							returned_inode = cur_inode;
+						if(!strcmp(dirent_name, current_directory)){
+							current_inode = directory_entry->inode;
+							returned_inode = current_inode;
 							flag = 1;
 							break;
 						}
@@ -337,7 +337,7 @@ int get_file_inode(unsigned char *virtual_disk, char *src_path, char *file_name,
 	int count = 0;
 	while(count < EXT2_BLOCK_SIZE){
 		directory_entry = (struct ext2_dir_entry *) (virtual_disk + EXT2_BLOCK_SIZE * inode->i_block[0] + count);
-		if(EXT2_FT_REG_FILE & dir_ent->file_type){
+		if(EXT2_FT_REG_FILE & directory_entry->file_type){
 			if(!strncmp(directory_entry->name, file_name, directory_entry->name_len) && directory_entry->name_len == strlen(file_name)){
 				return directory_entry->inode;
 			}
