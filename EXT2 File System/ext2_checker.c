@@ -1,4 +1,4 @@
-#include "ext2_functions.h"
+#include "ext2_helper.h"
 
 unsigned char *virtual_disk;
 

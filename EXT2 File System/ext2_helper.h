@@ -14,10 +14,6 @@
 #ifndef CSC369_EXT2_FUNC
 #define CSC369_EXT2_FUNC
 
-int get_file_inode(unsigned char *disk, char *src_path, char *fname, void *itable);
-
-int get_dir_inode(unsigned char *disk, char *name, void *offset);
-
 int attach_child_to_parent(unsigned char *disk, struct ext2_inode *inode, int child_inode, unsigned char type,
                            char *child_name, unsigned char *bmap);
 
@@ -40,5 +36,10 @@ int is_root(char *name);
 int check_file_path(unsigned char *disk, char *av, void *itable);
 
 char *format_name(char *argvtwo);
+
+int get_file_inode(unsigned char *disk, char *src_path, char *fname, void *itable);
+
+int get_dir_inode(unsigned char *disk, char *name, void *offset);
+
 
 #endif

@@ -1,4 +1,4 @@
-#include "ext2_functions.h"
+#include "ext2_helper.h"
 
 unsigned char *virtual_disk;
 
@@ -37,7 +37,7 @@ int main(int argc, char **argv){
 	char *file_name = get_child_name(argv[2]);
 
 	// Check existence of folder.
-	int parent_node = get_directory_inode(virtual_disk, parent_name, itable);    
+	int parent_node = get_directory_inode(virtual_disk, parent_name, itable);
 	if(parent_node < 0){
 		perror("Can't find parent directory.\n");
 		exit(ENOENT);
@@ -58,17 +58,17 @@ int main(int argc, char **argv){
 		directory_entry = (struct ext2_dir_entry *) (virtual_disk + EXT2_BLOCK_SIZE * src_inode->i_block[i]);
 		int directory = 0;
 		// Need to check all entries.
-		while(directory < EXT2_BLOCK_SIZE){     
+		while(directory < EXT2_BLOCK_SIZE){
 			int required_space = directory_entry->name_len;
 			// Required space needed to be rounded up to 4 bytes.
-			if(required_space % 4){       
+			if(required_space % 4){
 				required_space = required_space + 4 - required_space % 4;
 			}
 			required_space = required_space + sizeof(struct ext2_dir_entry);
 			int available_space = directory_entry->rec_len - required_space;
 			directory = directory + required_space;
 			// Check if there is enough space for deleted file.
-			if(!available_space){       
+			if(!available_space){
 				directory_entry = (struct ext2_dir_entry *) ((char *) directory_entry + required_space);
 				// Go to next entry.
 				continue;
@@ -76,7 +76,7 @@ int main(int argc, char **argv){
 			directory = directory + available_space;
 			struct ext2_dir_entry *deleted_entry = (struct ext2_dir_entry *) ((char *) directory_entry + required_space);
 			// Need to check all available space.
-			while(0 < available_space){     
+			while(0 < available_space){
 				// Only check for file and link.
 				if(deleted_entry->file_type & EXT2_FT_SYMLINK || deleted_entry->file_type & EXT2_FT_REG_FILE){
 					if(!strncmp(deleted_entry->name, file_name, deleted_entry->name_len) && deleted_entry->name_len == strlen(file_name)){

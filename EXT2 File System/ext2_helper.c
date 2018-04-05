@@ -7,7 +7,7 @@ int get_dir_inode(unsigned char *disk, char *name, void *itable) {
 	int next_dir;
 	char *current_dir;
 	int cur_inode = EXT2_ROOT_INO;
-	int result_inode = -1;
+	struct ext2_dir_entry *result_inode;
 	struct ext2_inode *inodes;
 
 	while (strlen(name) > 1) {
