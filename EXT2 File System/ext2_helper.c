@@ -7,7 +7,7 @@ int get_dir_inode(unsigned char *disk, char *name, void *itable) {
 	int next_dir;
 	char *current_dir;
 	int cur_inode = EXT2_ROOT_INO;
-	struct ext2_dir_entry *result_inode;
+	int result_inode;
 	struct ext2_inode *inodes;
 
 	while (strlen(name) > 1) {
@@ -46,11 +46,12 @@ int get_dir_inode(unsigned char *disk, char *name, void *itable) {
 							cur_inode = dir_ent->inode;
 							result_inode = cur_inode;
 							located = 1;
-							break;
+							free(current_dir);
+							return result_inode;
 						}
 					}
 					dir_ent = (struct ext2_dir_entry *) ((char *) dir_ent + dir_ent->rec_len);
-					result_inode = dir_ent;
+					result_inode = -1;
 				}
 				i++;
 			}
