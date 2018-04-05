@@ -14,6 +14,12 @@
 #ifndef CSC369_EXT2_FUNC
 #define CSC369_EXT2_FUNC
 
+int check_mode(struct ext2_inode *entry_node, struct ext2_dir_entry *directory_entry, int file_dir_link);
+
+int fix_counters(unsigned char *disk, int sb_or_gd, int block_or_inode);
+
+int get_directory_inode(unsigned char *virtual_disk, char *name, void *itable);
+
 int attach_child_to_parent(unsigned char *disk, struct ext2_inode *inode, int child_inode, unsigned char type,
                            char *child_name, unsigned char *bmap);
 
