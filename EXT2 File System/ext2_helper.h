@@ -7,12 +7,12 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <errno.h>
-#include "ext2.h"
 #include <assert.h>
 #include <time.h>
+#include "ext2.h"
 
-#ifndef ZUOYU_EXT2_FUNCTIONS_H
-#define ZUOYU_EXT2_FUNCTIONS_H
+#ifndef CSC369_EXT2_FUNC
+#define CSC369_EXT2_FUNC
 
 int get_file_inode(unsigned char *disk, char *src_path, char *fname, void *itable);
 
@@ -41,4 +41,4 @@ int check_file_path(unsigned char *disk, char *av, void *itable);
 
 char *format_name(char *argvtwo);
 
-#endif //ZUOYU_EXT2_FUNCTIONS_H
+#endif

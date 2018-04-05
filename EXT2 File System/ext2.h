@@ -12,7 +12,7 @@
  */
 
 /* MODIFIED by Bogdan Simion, Tian Ze Chen, and Karen Reid for CSC369
- * to remove unnecessary components for the assignment, clean up the code 
+ * to remove unnecessary components for the assignment, clean up the code
  * and fix some bugs */
 
 #ifndef CSC369_EXT2_FS_H
@@ -80,7 +80,7 @@ struct ext2_super_block {
 	char s_volume_name[16];   /* volume name */
 	char s_last_mounted[64];  /* directory where last mounted */
 	unsigned int s_algorithm_usage_bitmap; /* For compression */
-	/* 
+	/*
 	 * Performance hints.  Directory preallocation should only
 	 * happen if the EXT2_COMPAT_PREALLOC flag is on.
 	 */

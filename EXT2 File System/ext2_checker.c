@@ -1,210 +1,116 @@
 #include "ext2_functions.h"
 
-unsigned char *disk;
+unsigned char *virtual_disk;
 
-int fix_counters(unsigned char *disk, int sb_or_gd, int inode_or_block);
-int mode_checker(struct ext2_inode *ent_node, struct ext2_dir_entry *dir_ent, int file_link_dir);
-
-int main(int argc, char **argv) {
-	if (argc != 2) {
+int main(int argc, char **argv){
+	// Check arguments.
+	if(argc != 2){
 		fprintf(stderr, "Usage: %s <ext2 formatted virtual disk name>\n", argv[0]);
 		exit(1);
 	}
 	int fd = open(argv[1], O_RDWR);
-	disk = mmap(NULL, 128 * EXT2_BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (disk == MAP_FAILED) {
+	virtual_disk = mmap(NULL, 128 * EXT2_BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	// Check mmap error.
+	if(virtual_disk == MAP_FAILED){
 		perror("mmap");
 		exit(1);
 	}
 
-	int total_fixes = 0;
+	int fixes_count = 0;
+	// Fix fix_count based on the bitmaps.
+	// Superblock free the blocks.
+	fixes_count = fixes_count + abs(fix_counters(virtual_disk, 1, 0));
+	// Superblock free the inodes.
+	fixes_count = fixes_count + abs(fix_counters(virtual_disk, 1, 1));
+	// Block group free the blocks.
+	fixes_count = fixes_count + abs(fix_counters(virtual_disk, 0, 0));
+	// Block group free inodes.
+	fixes_count = fixes_count + abs(fix_counters(virtual_disk, 0, 1));
 
-	//Fix counters according to bitmap
-	total_fixes += abs(fix_counters(disk, 1, 1));       //superblock free inodes
-	total_fixes += abs(fix_counters(disk, 1, 0));       //superblock free blocks
-	total_fixes += abs(fix_counters(disk, 0, 1));       //block group free inodes
-	total_fixes += abs(fix_counters(disk, 0, 0));       //block group free blocks
+	struct ext2_super_block *sb = (struct ext2_super_block *) (virtual_disk + EXT2_BLOCK_SIZE);
+	struct ext2_group_desc *gd = (struct ext2_group_desc *) (virtual_disk + EXT2_BLOCK_SIZE * 2);
+	void *itable = virtual_disk + EXT2_BLOCK_SIZE * gd->bg_inode_table;
+	unsigned char *imap = (unsigned char *) (virtual_disk + EXT2_BLOCK_SIZE * gd->bg_inode_bitmap);
+	unsigned char *bmap = (unsigned char *) (virtual_disk + EXT2_BLOCK_SIZE * gd->bg_block_bitmap);
 
-	struct ext2_super_block *sb = (struct ext2_super_block *) (disk + EXT2_BLOCK_SIZE);
-	struct ext2_group_desc *gd = (struct ext2_group_desc *) (disk + EXT2_BLOCK_SIZE * 2);
-	void *itable = disk + EXT2_BLOCK_SIZE * gd->bg_inode_table;
-	unsigned char *imap = (unsigned char *) (disk + EXT2_BLOCK_SIZE * gd->bg_inode_bitmap);
-	unsigned char *bmap = (unsigned char *) (disk + EXT2_BLOCK_SIZE * gd->bg_block_bitmap);
-
-	int offset = 0;     //Offset from first non reserved node.
-	int cur_node = 2;       //Starts at 2 for root node, then jumps to 12 after first iteration.
-	do {
-		struct ext2_inode *inode = (struct ext2_inode *) (itable + sizeof(struct ext2_inode) * (cur_node - 1));
-		if (inode->i_size > 0 && inode->i_mode & EXT2_S_IFDIR) {
-			struct ext2_dir_entry *dir_ent;
+	// Offset from first non-reserved node.
+	int offset = 0;
+	// Starts at 2 for root node.
+	int current_node = 2;
+	do{
+		struct ext2_inode *inode = (struct ext2_inode *) (itable + sizeof(struct ext2_inode) * (current_node - 1));
+		if(inode->i_mode & EXT2_S_IFDIR && inode->i_size > 0){
+			struct ext2_dir_entry *directory_entry;
 			int i = 0;
-			while (i < (inode->i_blocks / 2)) {
-				int rec = 0;
-				dir_ent = (struct ext2_dir_entry *) (disk + EXT2_BLOCK_SIZE * inode->i_block[i]);
-				while (rec < EXT2_BLOCK_SIZE) {     //Check all entries
-					struct ext2_inode *ent_node = (struct ext2_inode *) (itable + sizeof(struct ext2_inode) *
-					                                                              (dir_ent->inode - 1));
-					//check mode and file type
-					int ft;     //0 = file    1 = link    2 = dir
-					for (ft = 0; ft < 3; ft++) {
-						total_fixes += mode_checker(ent_node, dir_ent, ft);
+			while(i < (inode->i_blocks / 2)){
+				int directory = 0;
+				directory_entry = (struct ext2_dir_entry *) (virtual_disk + EXT2_BLOCK_SIZE * inode->i_block[i]);
+				// Need to check all entries.
+				while(directory < EXT2_BLOCK_SIZE){
+					struct ext2_inode *entry_node = (struct ext2_inode *) (itable + sizeof(struct ext2_inode) * (directory_entry->inode - 1));
+					// Check file type and mode.
+					int file_type;
+					// file_type = 0 -> file.
+					// file_type = 1 -> link.
+					// file_type = 2 -> directory.
+					for(file_type = 0; file_type < 3; file_type ++){
+						fixes_count =  fixes_count + check_mode(entry_node, directory_entry, file_type);
+					}
+					// Check inode bitmaps.
+					if(get_map(imap, directory_entry->inode) != 1){
+						flip_map(imap, directory_entry->inode);
+						sb->s_free_inodes_count = sb->s_free_inodes_count - 1;
+						gd->bg_free_inodes_count = gd->bg_free_inodes_count - 1;
+						fixes_count = fixes_count + 1;
+						printf("Fixed: inode [%d] not marked as in-use\n", directory_entry->inode);
+					}
+					// Check inode's deletion time and reset.
+					if(entry_node->i_dtime){
+						entry_node->i_dtime = 0;
+						fixes_count = fixes_count + 1;
+						printf("Fixed: valid inode marked for deletion: [%d]\n", directory_entry->inode);
 					}
 
-					//check inode bitmaps
-					if (get_map(imap, dir_ent->inode) != 1) {
-						flip_map(imap, dir_ent->inode);
-						sb->s_free_inodes_count--;
-						gd->bg_free_inodes_count--;
-						total_fixes++;
-						printf("Fixed: inode [%d] not marked as in-use\n", dir_ent->inode);
-					}
-
-					//deletion time
-					if (ent_node->i_dtime) {        //Not 0
-						ent_node->i_dtime = 0;
-						total_fixes++;
-						printf("Fixed: valid inode marked for deletion: [%d]\n", dir_ent->inode);
-					}
-
-					//check block bitmaps
-
-					//Dir block map first
-					int blocks_fixed = 0;
-					if (get_map(bmap, inode->i_block[i]) != 1) {
+					// Check data blocks are allocated in the data bitmaps.
+					// Firstly, check directory block map.
+					int blocks_fixes_count = 0;
+					if(get_map(bmap, inode->i_block[i]) != 1){
 						flip_map(bmap, inode->i_block[i]);
-						sb->s_free_blocks_count--;
-						gd->bg_free_blocks_count--;
-						total_fixes++;
-						blocks_fixed++;
+						sb->s_free_blocks_count = sb->s_free_blocks_count - 1;
+						gd->bg_free_blocks_count = gd->bg_free_blocks_count - 1;
+						fixes_count = fixes_count + 1;
+						blocks_fixes_count = blocks_fixes_count + 1;
 					}
-
-					//File blocks
-					int f = 0;
-					while (f < 12 && f < ent_node->i_blocks / 2) {
-						if (get_map(bmap, ent_node->i_block[i]) != 1) {
-							flip_map(bmap, ent_node->i_block[i]);
-							sb->s_free_blocks_count--;
-							gd->bg_free_blocks_count--;
-							blocks_fixed++;
+					// Then check the File block.
+					int file_count = 0;
+					while(file_count < 12 && file_count < entry_node->i_blocks / 2){
+						if(get_map(bmap, entry_node->i_block[i]) != 1){
+							flip_map(bmap, entry_node->i_block[i]);
+							sb->s_free_blocks_count = sb->s_free_blocks_count - 1;
+							gd->bg_free_blocks_count = gd->bg_free_blocks_count - 1;
+							blocks_fixes_count = blocks_fixes_count + 1;
 						}
-						f++;
+						file_count = file_count + 1;
 					}
 
-					if (blocks_fixed) {
-						total_fixes += blocks_fixed;
-						printf("Fixed: %d in-use data blocks not marked in data bitmap for inode: [%d]\n", blocks_fixed,
-						       cur_node);
+					if(blocks_fixes_count){
+						fixes_count = fixes_count + blocks_fixes_count;
+						printf("Fixed: %d in-use data blocks not marked in data bitmap for inode: [%d]\n", blocks_fixes_count, current_node);
 					}
-
-					rec += dir_ent->rec_len;
-					dir_ent = (struct ext2_dir_entry *) (dir_ent->rec_len + (char *) dir_ent);
+					directory = directory + directory_entry->rec_len;
+					directory_entry = (struct ext2_dir_entry *) (directory_entry->rec_len + (char *) directory_entry);
 				}
-				i++;
+				i = i + 1;
 			}
 		}
-		offset++;
-		cur_node = offset + EXT2_GOOD_OLD_FIRST_INO;
-	} while (cur_node <= 32);
+		offset = offset + 1;
+		current_node = offset + EXT2_GOOD_OLD_FIRST_INO;
+	}while(current_node <= 32);
 
-	if (total_fixes){
-		printf("%d file system inconsistencies repaired!\n", total_fixes);
+	if(fixes_count){
+		printf("%d file system inconsistencies repaired!\n", fixes_count);
 	}else{
 		printf("No file system inconsistencies detected!\n");
 	}
 	return 0;
-}
-
-int fix_counters(unsigned char *disk, int sb_or_gd, int inode_or_block) {
-
-	struct ext2_super_block *sb = (struct ext2_super_block *) (disk + EXT2_BLOCK_SIZE);
-	struct ext2_group_desc *gd = (struct ext2_group_desc *) (disk + EXT2_BLOCK_SIZE * 2);
-
-	unsigned char *copy;
-	char *x;
-	char *y;
-	int bytes, size;
-	unsigned int *sb_free;
-	unsigned short *gd_free;
-
-	if (sb_or_gd) {     //1 = superblock, 0 = block group
-		x = "superblock";
-		if (inode_or_block) {
-			sb_free = &sb->s_free_inodes_count;
-		} else {
-			sb_free = &sb->s_free_blocks_count;
-		}
-	} else {
-		x = "block group";
-		if (inode_or_block) {
-			gd_free = &gd->bg_free_inodes_count;
-		} else {
-			gd_free = &gd->bg_free_blocks_count;
-		}
-	}
-
-	if (inode_or_block) {       //1 = inode, 0 = block
-		copy = (unsigned char *) (disk + EXT2_BLOCK_SIZE * gd->bg_inode_bitmap);
-		y = "free inodes";
-		bytes = sb->s_inodes_count / 8;
-		size = sb->s_inodes_count;
-
-	} else {
-		copy = (unsigned char *) (disk + EXT2_BLOCK_SIZE * gd->bg_block_bitmap);
-		y = "free blocks";
-		bytes = sb->s_blocks_count / 8;
-		size = sb->s_blocks_count - 1;      //Block bitmap is only blocks 1 - 127 (0-126)
-	}
-
-	int byte, bit;
-	int used_blocks = 0;
-	for (byte = 0; byte < bytes; byte++) {
-		for (bit = 0; bit < 8; bit++) {
-			if ((*copy >> bit) & 1) {     //Block bitmap is only blocks 1 - 127 (0-126)
-				if (inode_or_block || (byte * 8 + bit) < 127) {
-					used_blocks++;      //See https://piazza.com/class/j6s7y7ws7vo45h?cid=565
-				}
-			}
-		}
-		copy++;
-	}
-
-	int diff;
-	if (sb_or_gd) {
-		diff = size - *sb_free - used_blocks;
-		*sb_free += diff;
-	} else {
-		diff = size - *gd_free - used_blocks;
-		*gd_free += diff;
-	}
-	if (diff != 0) {
-		printf("Fixed: %s's %s counter was off by %d compared to the bitmap \n", x, y, abs(diff));
-	}
-
-	return diff;
-
-}
-
-int mode_checker(struct ext2_inode *ent_node, struct ext2_dir_entry *dir_ent, int file_link_dir) {
-	int mode_type;
-	int ft_type;
-
-	if (!file_link_dir) {             //0 = file
-		mode_type = EXT2_S_IFREG;
-		ft_type = EXT2_FT_REG_FILE;
-	} else if (file_link_dir == 1) {       //1 = link
-		mode_type = EXT2_S_IFLNK;
-		ft_type = EXT2_FT_SYMLINK;
-	} else {                          //2 = dir
-		mode_type = EXT2_S_IFDIR;
-		ft_type = EXT2_FT_DIR;
-	}
-
-	if ((ent_node->i_mode & mode_type) == mode_type) {
-		if (dir_ent->file_type != ft_type) {
-			dir_ent->file_type = ft_type;
-			printf("Fixed: Entry type vs inode mismatch: inode [%d]\n", dir_ent->inode);
-			return 1;
-		}
-	}
-	return 0;       //No fixes
 }
